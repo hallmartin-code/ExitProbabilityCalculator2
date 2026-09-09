@@ -1,0 +1,380 @@
+# TEN Capital -- Venture Exit Scenario Analyzer
+# Scoring and probability configuration.
+#
+# Everything that shapes a score or a probability lives in this file. No weight,
+# threshold or band is hard-coded in the analysis modules.
+#
+# Conventions
+#   * Factor weights within each dimension must sum to 1.0 (enforced at load time).
+#   * Factor scores are 0-10; a dimension score is sum(score * 10 * weight) -> 0-100.
+#   * For the three exit dimensions, a HIGH factor score is favourable.
+#   * For liquidity_risk, a HIGH factor score means MORE risk of no liquidity event.
+#   * All monetary thresholds are USD.
+
+version: 1
+
+# When a factor cannot be assessed from the available evidence it receives this
+# score. 5.0 is deliberately neutral: absence of information is not evidence of
+# strength, and it is not evidence of weakness either. The cost of missing data is
+# paid through the confidence score, not by silently penalising the company.
+neutral_factor_score: 5.0
+
+dimensions:
+
+  strategic_acquisition:
+    label: Strategic Acquisition
+    factors:
+      strategic_relevance: 0.12
+      technology_differentiation: 0.12
+      ip_defensibility: 0.13
+      customer_overlap: 0.08
+      product_complementarity: 0.08
+      market_position: 0.10
+      data_advantage: 0.07
+      regulatory_advantage: 0.09
+      time_to_market_advantage: 0.08
+      scarcity_value: 0.08
+      buyer_consolidation_trend: 0.05
+
+  financial_acquisition:
+    label: Financial Acquisition
+    factors:
+      revenue_scale: 0.15
+      revenue_predictability: 0.12
+      recurring_revenue: 0.12
+      gross_margin: 0.11
+      ebitda_potential: 0.12
+      customer_concentration: 0.09
+      capital_efficiency: 0.09
+      cash_generation: 0.08
+      market_stability: 0.05
+      leverage_capacity: 0.04
+      rollup_potential: 0.03
+
+  ipo_readiness:
+    label: IPO Readiness
+    factors:
+      revenue_scale: 0.16
+      growth_rate: 0.14
+      market_size: 0.10
+      market_leadership: 0.09
+      gross_margin: 0.08
+      operating_leverage: 0.07
+      revenue_predictability: 0.09
+      governance_readiness: 0.06
+      public_comparables: 0.06
+      capital_requirements: 0.06
+      category_visibility: 0.05
+      investor_appetite: 0.04
+
+  liquidity_risk:
+    label: Liquidity Risk
+    factors:
+      funding_dependency: 0.12
+      weak_growth: 0.11
+      small_market: 0.09
+      competitive_pressure: 0.09
+      customer_concentration: 0.08
+      regulatory_risk: 0.08
+      technology_risk: 0.08
+      poor_unit_economics: 0.10
+      capital_intensity: 0.07
+      buyer_scarcity: 0.09
+      valuation_expectations: 0.05
+      ownership_complications: 0.04
+
+# ---------------------------------------------------------------------------
+# Scoring bands
+# Each band list maps a measured value to a 0-10 factor score. Bands are read as
+# "value at or above `min` scores `score`", evaluated from the top down.
+# ---------------------------------------------------------------------------
+bands:
+
+  # Annual revenue / ARR in USD.
+  revenue_scale:
+    - {min: 100000000, score: 10}
+    - {min: 50000000, score: 9}
+    - {min: 25000000, score: 8}
+    - {min: 10000000, score: 7}
+    - {min: 5000000, score: 6}
+    - {min: 2000000, score: 4.5}
+    - {min: 500000, score: 3}
+    - {min: 1, score: 1.5}
+    - {min: 0, score: 0.5}
+
+  # Revenue scale as it bears on an IPO specifically -- the bar is far higher.
+  ipo_revenue_scale:
+    - {min: 200000000, score: 10}
+    - {min: 100000000, score: 9}
+    - {min: 50000000, score: 7.5}
+    - {min: 25000000, score: 5.5}
+    - {min: 10000000, score: 3.5}
+    - {min: 2000000, score: 1.5}
+    - {min: 0, score: 0.5}
+
+  # Year-over-year revenue growth, decimal fraction.
+  growth_rate:
+    - {min: 1.50, score: 10}
+    - {min: 1.00, score: 9}
+    - {min: 0.60, score: 8}
+    - {min: 0.40, score: 7}
+    - {min: 0.25, score: 5.5}
+    - {min: 0.15, score: 4}
+    - {min: 0.05, score: 2.5}
+    - {min: 0.00, score: 1.5}
+    - {min: -9.99, score: 0.5}
+
+  gross_margin:
+    - {min: 0.85, score: 10}
+    - {min: 0.75, score: 9}
+    - {min: 0.65, score: 7.5}
+    - {min: 0.50, score: 6}
+    - {min: 0.35, score: 4}
+    - {min: 0.20, score: 2.5}
+    - {min: -9.99, score: 1}
+
+  ebitda_margin:
+    - {min: 0.25, score: 10}
+    - {min: 0.15, score: 9}
+    - {min: 0.05, score: 7.5}
+    - {min: 0.00, score: 6}
+    - {min: -0.20, score: 4.5}
+    - {min: -0.50, score: 3}
+    - {min: -1.00, score: 2}
+    - {min: -99.0, score: 1}
+
+  # Share of revenue from the largest customer(s). Lower is better, so this band
+  # is inverted by the scorer -- the score shown here is already the good/bad
+  # assessment, not the raw concentration.
+  customer_concentration:
+    - {min: 0.60, score: 1}
+    - {min: 0.40, score: 3}
+    - {min: 0.25, score: 5}
+    - {min: 0.15, score: 7}
+    - {min: 0.00, score: 9}
+
+  recurring_revenue_pct:
+    - {min: 0.90, score: 10}
+    - {min: 0.75, score: 9}
+    - {min: 0.50, score: 7}
+    - {min: 0.25, score: 5}
+    - {min: 0.10, score: 3}
+    - {min: 0.00, score: 1.5}
+
+  net_revenue_retention:
+    - {min: 1.30, score: 10}
+    - {min: 1.15, score: 9}
+    - {min: 1.00, score: 7.5}
+    - {min: 0.90, score: 5.5}
+    - {min: 0.80, score: 3.5}
+    - {min: 0.00, score: 1.5}
+
+  retention_rate:
+    - {min: 0.95, score: 10}
+    - {min: 0.90, score: 8.5}
+    - {min: 0.80, score: 7}
+    - {min: 0.70, score: 5}
+    - {min: 0.50, score: 3}
+    - {min: 0.00, score: 1.5}
+
+  # TAM in USD.
+  market_size:
+    - {min: 50000000000, score: 10}
+    - {min: 10000000000, score: 9}
+    - {min: 5000000000, score: 8}
+    - {min: 1000000000, score: 6.5}
+    - {min: 500000000, score: 5}
+    - {min: 100000000, score: 3}
+    - {min: 0, score: 1.5}
+
+  market_growth_rate:
+    - {min: 0.30, score: 10}
+    - {min: 0.20, score: 8.5}
+    - {min: 0.12, score: 7}
+    - {min: 0.06, score: 5}
+    - {min: 0.02, score: 3.5}
+    - {min: -9.99, score: 2}
+
+  # Total patent positions (granted + pending).
+  patent_count:
+    - {min: 20, score: 10}
+    - {min: 10, score: 9}
+    - {min: 5, score: 8}
+    - {min: 3, score: 7}
+    - {min: 1, score: 5.5}
+    - {min: 0, score: 2}
+
+  # Months of cash runway.
+  runway_months:
+    - {min: 24, score: 10}
+    - {min: 18, score: 8.5}
+    - {min: 12, score: 7}
+    - {min: 9, score: 5}
+    - {min: 6, score: 3}
+    - {min: 0, score: 1}
+
+  # Capital efficiency: revenue generated per dollar of capital raised.
+  capital_efficiency:
+    - {min: 1.50, score: 10}
+    - {min: 1.00, score: 9}
+    - {min: 0.60, score: 7.5}
+    - {min: 0.35, score: 6}
+    - {min: 0.20, score: 4.5}
+    - {min: 0.10, score: 3}
+    - {min: 0.00, score: 1.5}
+
+# ---------------------------------------------------------------------------
+# Probability engine
+# ---------------------------------------------------------------------------
+probability:
+  # Each liquidity route gets an unnormalised weight:
+  #   weight = base_rate * (score/100 ** exponent) * horizon_factor * gates
+  # The four weights are then normalised to 100% and rounded to the increment.
+  #
+  # base_rate encodes the unconditional frequency of each outcome across venture
+  # portfolios: strategic acquisition is by far the most common liquidity route,
+  # PE/financial acquisition materially rarer at venture scale, and IPO rare.
+  base_rate:
+    strategic_acquisition: 1.00
+    financial_acquisition: 0.45
+    ipo: 0.18
+    no_liquidity: 1.35
+
+  # Exponent > 1 sharpens the response to the underlying score, so a weak score
+  # is punished more than linearly. IPO is the most demanding.
+  exponent:
+    strategic_acquisition: 1.6
+    financial_acquisition: 1.8
+    ipo: 2.6
+    no_liquidity: 1.4
+
+  # How the opportunity for each route develops over each window. Longer windows
+  # give more room for an exit to occur, so no_liquidity decays with time while
+  # the routes that require scale (PE, IPO) strengthen.
+  horizon_factor:
+    1_3_years:
+      strategic_acquisition: 0.60
+      financial_acquisition: 0.30
+      ipo: 0.10
+      no_liquidity: 1.65
+    3_5_years:
+      strategic_acquisition: 1.00
+      financial_acquisition: 0.85
+      ipo: 0.40
+      no_liquidity: 1.00
+    5_7_years:
+      strategic_acquisition: 1.10
+      financial_acquisition: 1.15
+      ipo: 0.90
+      no_liquidity: 0.72
+    7_10_years:
+      strategic_acquisition: 1.12
+      financial_acquisition: 1.30
+      ipo: 1.20
+      no_liquidity: 0.55
+
+  # Early-stage companies are further from every exit route. This multiplier is
+  # applied to the liquidity routes according to how many stages of maturity the
+  # company would plausibly need to cross, indexed by Stage.ordinal (0 = pre-seed).
+  stage_liquidity_multiplier:
+    0: 0.55
+    1: 0.70
+    2: 0.88
+    3: 1.00
+    4: 1.10
+    5: 1.18
+
+  # An IPO below a credible revenue scale is not a realistic route regardless of
+  # score. Below the floor the IPO weight is damped by the given factor.
+  ipo_revenue_floor: 50000000
+  ipo_below_floor_damping: 0.25
+
+  # PE buyers underwrite cash flow. A company with no revenue at all gets its
+  # financial-acquisition weight damped to reflect that.
+  financial_revenue_floor: 3000000
+  financial_below_floor_damping: 0.40
+
+  # Presentation: probabilities are rounded to this increment to avoid false
+  # precision. The residual from rounding is applied to the largest bucket.
+  rounding_increment: 5
+
+  # A no-liquidity outcome is never removed from the table. Venture outcomes are
+  # power-law distributed and the floor keeps that visible to the reader.
+  min_no_liquidity: 10
+  max_no_liquidity: 85
+
+# ---------------------------------------------------------------------------
+# Confidence model
+# Weights of each component of the 0-100 analysis confidence score.
+# ---------------------------------------------------------------------------
+confidence:
+  weights:
+    deck_completeness: 0.28
+    financial_data_quality: 0.26
+    comparables_support: 0.18
+    stage_predictability: 0.12
+    market_data_quality: 0.10
+    assumption_consistency: 0.06
+  bands:
+    high: 70
+    moderate: 45
+  # Comparable count at which the comparables component reaches full marks.
+  comparables_saturation: 6
+  # Later-stage companies are more predictable; indexed by Stage.ordinal.
+  stage_predictability:
+    0: 0.25
+    1: 0.40
+    2: 0.60
+    3: 0.75
+    4: 0.85
+    5: 0.90
+
+# ---------------------------------------------------------------------------
+# Capital-to-exit model
+# ---------------------------------------------------------------------------
+capital:
+  # Revenue scale at which each exit route becomes broadly plausible, used to
+  # estimate how many more financing rounds are likely to be required.
+  exit_readiness_revenue:
+    strategic_acquisition: 10000000
+    financial_acquisition: 15000000
+    ipo: 100000000
+  # Typical time to reach exit readiness, in years, when growth is unknown.
+  default_years_to_readiness: 3.5
+  # Reaching exit-readiness revenue is not the same as being paid. A sale or
+  # listing process -- banker engagement, diligence, negotiation, close -- takes
+  # roughly a year, and the company must be funded through it.
+  exit_process_months: 12
+  # Ceiling on the growth rate used to project the path to exit readiness.
+  # Extrapolating a triple-digit growth rate for several years produces a
+  # flattering timeline and therefore an understated capital requirement.
+  max_projection_growth: 1.0
+  # Round sizing as a multiple of estimated annual burn.
+  round_size_burn_multiple_low: 1.8
+  round_size_burn_multiple_high: 2.6
+  # Dilution per financing round, decimal fraction.
+  dilution_per_round_low: 0.15
+  dilution_per_round_high: 0.25
+  # Range width applied to the central capital estimate.
+  range_low_factor: 0.75
+  range_high_factor: 1.45
+
+# ---------------------------------------------------------------------------
+# Valuation model
+# ---------------------------------------------------------------------------
+valuation:
+  # Minimum comparables required before a range is presented as defensible.
+  min_comparables_for_range: 3
+  # Percentiles of the comparable multiple distribution used as the range bounds.
+  low_percentile: 25
+  high_percentile: 75
+  # With only a handful of comparables the interquartile range collapses to an
+  # artificially tight band. Below this count the full min-max spread is used
+  # instead, which honestly reflects how little the sample constrains the answer.
+  wide_range_below_count: 5
+  # Discount applied to comparable multiples when the subject is materially
+  # smaller than the comparable set -- size discounts are real and persistent.
+  small_company_discount: 0.70
+  small_company_revenue_threshold: 10000000
+  # Revenue below which no revenue-multiple valuation is presented at all.
+  min_revenue_for_valuation: 1000000

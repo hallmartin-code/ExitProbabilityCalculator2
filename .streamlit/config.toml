@@ -1,0 +1,76 @@
+# Streamlit runtime and theme configuration.
+#
+# The theme is expressed here rather than as injected CSS wherever Streamlit
+# supports it, because theme configuration is a supported API while CSS aimed at
+# generated class names breaks on upgrade. Colours mirror PALETTE in
+# venture_exit_analyzer/ui/theme.py, and a test asserts the two agree.
+#
+# Port and address are supplied on the command line at deploy time, because
+# Railway assigns $PORT at container start and it is not known here.
+
+[server]
+headless = true
+# CORS is deliberately left at its default (enabled). Streamlit refuses to
+# combine enableCORS=false with XSRF protection and silently re-enables CORS,
+# so disabling it here would be a no-op that only looked like a setting.
+enableXsrfProtection = true
+# A pitch deck is a few megabytes. The 200MB default is an abuse surface.
+maxUploadSize = 25
+# Serves ./static at /app/static/, which is how the apple-touch icon and the web
+# manifest become reachable. Only icon assets live there; nothing sensitive.
+enableStaticServing = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Errors should reach the interface, not only the container logs, so a user can
+# report what actually went wrong.
+showErrorDetails = true
+
+# ---------------------------------------------------------------------------
+# TEN Capital Network -- dark navy with a coral / amber / teal accent triad
+# ---------------------------------------------------------------------------
+[theme]
+base = "dark"
+
+backgroundColor = "#0B1526"          # navy-950, page ground
+secondaryBackgroundColor = "#16283F" # navy-800, cards and inputs
+textColor = "#F3F6FA"                # ink-100
+primaryColor = "#EE5A4E"             # coral, primary action
+borderColor = "#1E354F"              # navy-700
+linkColor = "#35BEBB"                # teal
+
+font = "Inter, sans-serif"
+headingFont = "Sora, sans-serif"
+codeFont = "JetBrains Mono, monospace"
+
+# "Strategic Acquisition" is the longest headline outcome and truncates to
+# "Strategic Acqui..." at Streamlit's default metric size in a third-width column.
+metricValueFontSize = "1.5rem"
+
+baseRadius = "0.7rem"
+buttonRadius = "0.75rem"
+showWidgetBorder = true
+showSidebarBorder = true
+
+# Semantic colours are mapped onto the accent triad so status reads at a glance:
+# teal confirms, amber warns, coral flags a problem.
+greenColor = "#35BEBB"
+greenTextColor = "#35BEBB"
+yellowColor = "#F3A22A"
+orangeColor = "#F3A22A"
+orangeTextColor = "#F3A22A"
+redColor = "#EE5A4E"
+redTextColor = "#F0776C"
+blueColor = "#35BEBB"
+
+dataframeHeaderBackgroundColor = "#101E33"
+dataframeBorderColor = "#1E354F"
+
+[theme.sidebar]
+backgroundColor = "#101E33"          # navy-900, one step lighter than the page
+secondaryBackgroundColor = "#16283F"
+borderColor = "#1E354F"
+textColor = "#C4D0E0"                # ink-300
+primaryColor = "#35BEBB"

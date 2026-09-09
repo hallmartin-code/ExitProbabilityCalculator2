@@ -1,0 +1,11 @@
+# Never upload secrets or local artefacts to the build context.
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+outbox/
+tests/
+tools/

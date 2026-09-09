@@ -1,0 +1,42 @@
+# TEN Capital -- Venture Exit Scenario Analyzer
+# Python 3.10+ (developed and tested on 3.14)
+
+# --- Interface -------------------------------------------------------------
+streamlit>=1.30,<2
+
+# --- Data models -----------------------------------------------------------
+pydantic>=2.5,<3
+PyYAML>=6.0,<7
+
+# --- Document ingestion ----------------------------------------------------
+pdfplumber>=0.11,<1        # primary PDF text and table extraction
+pypdf>=4.0                 # fallback PDF parser and page-count verification
+python-pptx>=1.0,<2        # PowerPoint (.pptx) extraction
+PyMuPDF>=1.24              # page rasterisation for the optional OCR path
+
+# --- Reporting -------------------------------------------------------------
+reportlab>=4.0             # one-page PDF rendering
+
+# --- AI layer --------------------------------------------------------------
+# Gap-filling extraction and narrative prose only. The application runs fully
+# without an API key, using deterministic parsing.
+anthropic>=0.40,<1
+
+# --- Email delivery --------------------------------------------------------
+# Resend is called over plain HTTP; httpx is imported directly by the email
+# service, so it is declared here rather than relied on as a transitive
+# dependency of anthropic.
+httpx>=0.27
+
+# --- Optional --------------------------------------------------------------
+# OCR is used only for pages with no text layer. It also needs the Tesseract
+# binary on PATH (https://github.com/tesseract-ocr/tesseract).
+#   pytesseract>=0.3.10
+#   Pillow>=10.0
+#
+# Live transmission to a TEN Capital endpoint. Without it the service layer
+# falls back to writing records to a local outbox.
+#   requests>=2.31
+
+# --- Development -----------------------------------------------------------
+pytest>=8.0

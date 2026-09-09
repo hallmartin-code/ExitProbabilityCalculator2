@@ -1,0 +1,86 @@
+# TEN Capital -- one-page PDF report configuration.
+# Typography, geometry and boilerplate for the Venture Exit Scenario Report.
+
+version: 1
+
+page:
+  # Portrait Letter. The layout engine measures every block and will compress
+  # spacing before it ever spills onto a second page.
+  size: LETTER
+  orientation: portrait
+  margin_top: 34
+  margin_bottom: 30
+  margin_left: 38
+  margin_right: 38
+
+fonts:
+  # Open Sans is the TEN Capital standard. The renderer registers it when the TTF
+  # files are discoverable on the system and falls back to Helvetica otherwise --
+  # the layout metrics are close enough that the page geometry is unaffected.
+  preferred_family: Open Sans
+  fallback_family: Helvetica
+
+type_scale:
+  # Body and section-header sizes follow the TEN Capital document standard
+  # (body 8-9pt, section headers 10-11pt).
+  brand: 14
+  title: 12
+  section_header: 10
+  body: 8.5
+  table_header: 7.4
+  table_body: 8.2
+  metric_label: 6.8
+  metric_value: 9.4
+  disclaimer: 6.6
+  footer: 6.6
+
+colors:
+  ink: "#1A1A1A"
+  muted: "#5C5C5C"
+  hairline: "#C9C9C9"
+  rule: "#1A1A1A"
+  band: "#F2F2F0"
+  header_band: "#1A1A1A"
+  header_text: "#FFFFFF"
+  positive: "#1F5C3D"
+  negative: "#7A2318"
+  accent: "#2E4A62"
+
+spacing:
+  section_gap: 7
+  block_gap: 4
+  rule_gap: 3
+  table_padding: 2.6
+
+labels:
+  brand: TEN CAPITAL
+  title: VENTURE EXIT SCENARIO ANALYSIS
+  sections:
+    outlook: EXIT SCENARIO OUTLOOK
+    profile: LIKELY EXIT PROFILE
+    milestones: VALUE CREATION MILESTONES
+    capital: CAPITAL TO EXIT READINESS
+    drivers: EXIT VALUATION DRIVERS
+    valuation: INDICATIVE EXIT RANGE
+    basis: ANALYTICAL BASIS
+
+boilerplate:
+  estimate_caption: "Directional Scenario Estimate — Not a Forecast"
+  insufficient_valuation: Insufficient information for a credible valuation range.
+  disclaimer: >-
+    Directional decision-support analysis based on supplied information and stated
+    assumptions. It is not an investment recommendation, valuation opinion, or
+    prediction of future liquidity.
+  footer: Confidential - for recipients only.
+
+limits:
+  # Hard caps that keep the report to a single page. The layout engine truncates
+  # to these counts and notes in the JSON record when it has done so.
+  max_milestones: 5
+  max_upside_drivers: 3
+  max_risk_drivers: 3
+  max_horizons_shown: 3
+  exit_profile_chars: 620
+  max_assumptions: 3
+  max_limitations: 3
+  basis_item_chars: 165
