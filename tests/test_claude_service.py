@@ -25,7 +25,9 @@ from venture_exit_analyzer.services.claude_service import (
     ClaudeService,
     ClaudeUnavailable,
     _unsupported_figures,
+    apply_user_value,
     build_service,
+    missing_field_names,
 )
 from venture_exit_analyzer.utils.env import env_bool, env_int, load_dotenv, redact
 
@@ -251,6 +253,54 @@ class TestExtractionRejectsBadValues:
         service = service_returning({})
         outcome = service.extract(parsed_pdf, dossier)
         assert outcome.applied == []
+
+    def test_rejected_fields_maps_recognised_names_to_reasons(self, parsed_pdf, dossier):
+        service = service_returning(
+            {
+                "facts": [
+                    fact("ownership.founder_ownership", value_numeric=45.0),
+                    fact("financials.__evil__", value_numeric=1),
+                ]
+            }
+        )
+        outcome = service.extract(parsed_pdf, dossier)
+        assert outcome.rejected_fields == {
+            "ownership.founder_ownership": "45 above plausible maximum"
+        }
+
+
+# ---------------------------------------------------------------------------
+# User-entered values for missing fields
+# ---------------------------------------------------------------------------
+class TestApplyUserValue:
+    def test_missing_fields_shrink_as_values_are_entered(self, empty_dossier):
+        assert "financials.gross_margin" in missing_field_names(empty_dossier)
+        apply_user_value(empty_dossier, "financials.gross_margin", 0.78)
+        assert "financials.gross_margin" not in missing_field_names(empty_dossier)
+        assert empty_dossier.financials.gross_margin.value == pytest.approx(0.78)
+        assert (
+            empty_dossier.financials.gross_margin.evidence_class
+            == EvidenceClass.USER_SUPPLIED
+        )
+
+    def test_user_values_are_held_to_the_same_bounds(self, empty_dossier):
+        with pytest.raises(ValueError, match="maximum"):
+            apply_user_value(empty_dossier, "ownership.founder_ownership", 45.0)
+        assert not empty_dossier.ownership.founder_ownership.is_present
+
+    def test_integers_are_rounded(self, empty_dossier):
+        apply_user_value(empty_dossier, "customers.customer_count", 41.6)
+        assert empty_dossier.customers.customer_count.value == 42
+
+    def test_stage_and_lists(self, empty_dossier):
+        apply_user_value(empty_dossier, "company.stage", "series_a")
+        assert empty_dossier.company.stage.evidence_class == EvidenceClass.USER_SUPPLIED
+        apply_user_value(empty_dossier, "named_buyers", ["Medtronic", " ", "Stryker"])
+        assert empty_dossier.named_buyers == ["Medtronic", "Stryker"]
+        with pytest.raises(ValueError):
+            apply_user_value(empty_dossier, "company.stage", "series_z")
+        with pytest.raises(ValueError):
+            apply_user_value(empty_dossier, "ip.clinical_assets", ["  "])
 
 
 # ---------------------------------------------------------------------------

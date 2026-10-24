@@ -50,8 +50,13 @@ from venture_exit_analyzer.models.record import ConsentBlock, UserBlock, build_r
 from venture_exit_analyzer.reporting.pdf_generator import PDFGenerationError, generate_pdf
 from venture_exit_analyzer.ui import theme
 from venture_exit_analyzer.services.claude_service import (
+    FIELD_INDEX,
     ClaudeUnavailable,
+    ExtractionOutcome,
+    FieldSpec,
+    apply_user_value,
     build_service,
+    missing_field_names,
 )
 from venture_exit_analyzer.services.email_service import (
     EmailConsentError,
@@ -327,6 +332,155 @@ def render_upload_tab() -> None:
                 st.markdown(f"**{document.unit_name.title()} {page.number}** - {page.title or '(no title)'}")
                 st.text(page.searchable_text()[:1200] or "(no text)")
 
+        if st.session_state["dossier"] is not None:
+            render_gap_editor(st.session_state["dossier"], outcome)
+
+
+# ---------------------------------------------------------------------------
+# Missing and rejected data points
+# ---------------------------------------------------------------------------
+_GAP_SECTIONS = {
+    "company": "Company",
+    "financials": "Financials",
+    "market": "Market",
+    "customers": "Customers",
+    "ip": "Intellectual property",
+    "ownership": "Ownership",
+    "named_buyers": "Potential buyers",
+}
+_GAP_LABEL_OVERRIDES = {
+    "arr": "ARR",
+    "tam": "TAM",
+    "sam": "SAM",
+    "som": "SOM",
+    "ebitda_margin": "EBITDA margin",
+    "named_buyers": "Potential buyers",
+    "stage": "Financing stage",
+}
+#: Display unit per field kind: (label suffix, multiplier from display to canonical).
+_GAP_UNITS = {"money": (" ($M)", 1e6), "percent": (" (%)", 0.01), "integer": ("", 1.0)}
+
+
+def _gap_label(spec: FieldSpec) -> str:
+    attribute = spec.name.split(".")[-1]
+    label = _GAP_LABEL_OVERRIDES.get(attribute, attribute.replace("_", " ").capitalize())
+    if spec.kind == "list":
+        return f"{label} (one per line)"
+    return label + _GAP_UNITS.get(spec.kind, ("", 1.0))[0]
+
+
+def _gap_input(spec: FieldSpec, help_text: str) -> Any:
+    """Render one empty input for a missing field; return its canonical value or None."""
+    key = f"gap_{spec.name}"
+    label = _gap_label(spec)
+    if spec.name == "company.stage":
+        stage = st.selectbox(
+            label, [None, *Stage], key=key, help=help_text,
+            format_func=lambda s: "Not disclosed" if s is None else s.label,
+        )
+        return stage.value if stage is not None else None
+    if spec.kind == "boolean":
+        choice = st.selectbox(label, ["Not disclosed", "Yes", "No"], key=key, help=help_text)
+        return None if choice == "Not disclosed" else choice == "Yes"
+    if spec.kind == "list":
+        lines = st.text_area(label, key=key, help=help_text, placeholder="Not disclosed")
+        items = [line.strip() for line in lines.splitlines() if line.strip()]
+        return items or None
+    if spec.kind == "text":
+        return st.text_input(label, key=key, help=help_text, placeholder="Not disclosed").strip() or None
+
+    integer = spec.kind == "integer"
+    entered = st.number_input(
+        label, value=None, key=key, help=help_text, placeholder="Not disclosed",
+        step=1.0 if integer else 0.1, format="%.0f" if integer else "%.2f",
+    )
+    return None if entered is None else float(entered) * _GAP_UNITS[spec.kind][1]
+
+
+def _reset_review_widgets() -> None:
+    """Drop Review-tab widget state so its fields reload from the dossier.
+
+    A keyed Streamlit widget keeps its own state across reruns; left alone, the
+    Review tab would still show an empty box and "clear" a value saved here.
+    """
+    for key in [k for k in st.session_state.keys() if str(k).startswith("f_")]:
+        del st.session_state[key]
+
+
+def render_gap_editor(dossier: DealDossier, outcome: Optional[ExtractionOutcome]) -> None:
+    theme.section("Fill in missing data")
+    feedback = st.session_state.pop("gap_feedback", None)
+    if feedback:
+        if feedback["saved"]:
+            st.success("Saved as user-supplied: " + ", ".join(feedback["saved"]))
+        for error in feedback["errors"]:
+            st.error(error)
+
+    missing = missing_field_names(dossier)
+    if not missing:
+        st.success("Every tracked data point has a value. Check them on the Review tab.")
+        return
+
+    rejected = outcome.rejected_fields if outcome is not None else {}
+    rejected_missing = [name for name in missing if name in rejected]
+    other_missing = [name for name in missing if name not in rejected]
+
+    st.write(
+        f"{len(missing)} data point(s) were not found in the deck"
+        + (f", including {len(rejected_missing)} Claude proposed but were rejected" if rejected_missing else "")
+        + ". Enter any you know. Saved values are marked as user-supplied, and "
+        "anything left blank stays undisclosed. It is not treated as zero."
+    )
+
+    entries: Dict[str, Any] = {}
+    with st.form("gap_editor"):
+        if rejected_missing:
+            st.markdown("**Rejected by validation**")
+            for name in rejected_missing:
+                spec = FIELD_INDEX[name]
+                entries[name] = _gap_input(
+                    spec, f"{spec.description} Claude's value was rejected: {rejected[name]}."
+                )
+                st.caption(f"Rejected: {rejected[name]}")
+
+        by_section: Dict[str, List[str]] = {}
+        for name in other_missing:
+            by_section.setdefault(name.split(".")[0], []).append(name)
+        for section, names in by_section.items():
+            with st.expander(f"{_GAP_SECTIONS.get(section, section.title())} ({len(names)} missing)"):
+                columns = st.columns(2)
+                for index, name in enumerate(names):
+                    with columns[index % 2]:
+                        spec = FIELD_INDEX[name]
+                        entries[name] = _gap_input(spec, spec.description)
+
+        submitted = st.form_submit_button("Save entered values", type="primary")
+
+    if not submitted:
+        return
+
+    saved: List[str] = []
+    errors: List[str] = []
+    for name, value in entries.items():
+        if value is None:
+            continue
+        label = _gap_label(FIELD_INDEX[name])
+        try:
+            apply_user_value(dossier, name, value)
+        except ValueError as exc:
+            errors.append(f"{label}: {exc}")
+            continue
+        saved.append(label)
+
+    if not saved and not errors:
+        st.info("No values were entered.")
+        return
+    if saved:
+        invalidate_downstream("missing values were entered")
+        _reset_review_widgets()
+    st.session_state["gap_feedback"] = {"saved": saved, "errors": errors}
+    st.rerun()
+
 
 def _run_extraction(uploaded) -> None:
     suffix = Path(uploaded.name).suffix or ".pdf"
@@ -362,6 +516,9 @@ def _run_extraction(uploaded) -> None:
         st.session_state["deck_text"] = document.full_text
         st.session_state["reviewed"] = False
         invalidate_downstream("a new deck was extracted")
+        _reset_review_widgets()
+        for key in [k for k in st.session_state.keys() if str(k).startswith("gap_")]:
+            del st.session_state[key]
         st.rerun()
 
     except DocumentExtractionError as exc:

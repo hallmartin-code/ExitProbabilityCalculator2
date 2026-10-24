@@ -187,6 +187,63 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
 FIELD_INDEX: Dict[str, FieldSpec] = {spec.name: spec for spec in FIELD_SPECS}
 
 
+def missing_field_names(dossier: DealDossier) -> List[str]:
+    """Field names in FIELD_SPECS that the dossier does not yet populate."""
+    missing: List[str] = []
+    for spec in FIELD_SPECS:
+        if spec.name == "named_buyers":
+            if not dossier.named_buyers:
+                missing.append(spec.name)
+            continue
+        section_name, attribute = spec.name.split(".", 1)
+        section = getattr(dossier, section_name, None)
+        current = getattr(section, attribute, None) if section else None
+        if isinstance(current, Evidenced):
+            if not current.is_present:
+                missing.append(spec.name)
+        elif isinstance(current, list):
+            if not current:
+                missing.append(spec.name)
+    return missing
+
+
+def apply_user_value(dossier: DealDossier, name: str, value: Any) -> None:
+    """Write a user-entered value for a FIELD_SPECS field, in canonical units.
+
+    The user is held to the same plausibility bounds as the model, so a typo
+    such as a margin of 7800% is refused rather than scored. Raises ValueError
+    with a user-facing message when the value is unusable.
+    """
+    spec = FIELD_INDEX.get(name)
+    if spec is None:
+        raise ValueError(f"{name} is not a recognised field.")
+
+    if spec.kind == "list":
+        items = value if isinstance(value, list) else [value]
+        value = [str(item).strip() for item in items if str(item).strip()]
+        if not value:
+            raise ValueError("enter at least one item.")
+    elif spec.kind == "boolean":
+        if not isinstance(value, bool):
+            raise ValueError("choose yes or no.")
+    elif spec.kind == "text":
+        value = str(value or "").strip()
+        if not value:
+            raise ValueError("enter a value.")
+        if name == "company.stage":
+            Stage(value)  # raises ValueError for an unknown stage
+    else:
+        number = float(value)
+        if spec.minimum is not None and number < spec.minimum:
+            raise ValueError("value is below the plausible minimum.")
+        if spec.maximum is not None and number > spec.maximum:
+            raise ValueError("value is above the plausible maximum.")
+        value = int(round(number)) if spec.kind == "integer" else number
+
+    evidenced = Evidenced.from_user(value, note="Entered by the user after extraction.")
+    spec.apply(dossier, value, evidenced)
+
+
 # ---------------------------------------------------------------------------
 # Results
 # ---------------------------------------------------------------------------
@@ -204,6 +261,16 @@ class ExtractionOutcome:
     @property
     def applied_count(self) -> int:
         return len(self.applied)
+
+    @property
+    def rejected_fields(self) -> Dict[str, str]:
+        """Recognised field names whose proposed value was refused, with the reason."""
+        reasons: Dict[str, str] = {}
+        for item in self.rejected:
+            name, _, reason = item.partition(": ")
+            if name in FIELD_INDEX:
+                reasons.setdefault(name, reason)
+        return reasons
 
     def summary(self) -> str:
         if not self.applied and not self.rejected:
@@ -367,22 +434,7 @@ class ClaudeService:
 
     def _missing_field_names(self, dossier: DealDossier) -> List[str]:
         """Field names the deterministic pass did not populate."""
-        missing: List[str] = []
-        for spec in FIELD_SPECS:
-            if spec.name == "named_buyers":
-                if not dossier.named_buyers:
-                    missing.append(spec.name)
-                continue
-            section_name, attribute = spec.name.split(".", 1)
-            section = getattr(dossier, section_name, None)
-            current = getattr(section, attribute, None) if section else None
-            if isinstance(current, Evidenced):
-                if not current.is_present:
-                    missing.append(spec.name)
-            elif isinstance(current, list):
-                if not current:
-                    missing.append(spec.name)
-        return missing
+        return missing_field_names(dossier)
 
     def _apply_fact(
         self,
